@@ -2,10 +2,10 @@
 name: Build NeoBar APK
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -24,7 +24,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
@@ -38,17 +37,16 @@ jobs:
         run: |
           mkdir -p source
 
-          if [ -f NeoBar-cloud-build.zip ]; then
-            PACKAGE="NeoBar-cloud-build.zip"
-          elif [ -f NeoBar-cloud-build-package.zip ]; then
-            PACKAGE="NeoBar-cloud-build-package.zip"
-          else
-            echo "Cloud build ZIP not found!"
+          ZIP=$(find . -maxdepth 1 -type f -iname '*.zip' -print -quit)
+
+          if [ -z "$ZIP" ]; then
+            echo "No ZIP package found!"
             ls -la
             exit 1
           fi
 
-          unzip -q "$PACKAGE" -d source
+          echo "Extracting $ZIP"
+          unzip -q "$ZIP" -d source
 
       - name: Find Android Project
         id: project
@@ -57,7 +55,7 @@ jobs:
 
           if [ -z "$SETTINGS" ]; then
             echo "Gradle settings file not found!"
-            find source -maxdepth 4 -type f
+            find source -maxdepth 5 -type f
             exit 1
           fi
 
