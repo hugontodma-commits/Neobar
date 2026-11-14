@@ -2,10 +2,10 @@
 name: Build NeoBar APK
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -24,6 +24,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          cache: gradle
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
@@ -33,20 +34,44 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Extract NeoBar
+      - name: Extract Cloud Build Package
         run: |
           mkdir -p source
-          unzip -q NeoBar-update.zip -d source
-          test -f source/settings.gradle.kts
-          test -d source/app
+
+          if [ -f NeoBar-cloud-build.zip ]; then
+            PACKAGE="NeoBar-cloud-build.zip"
+          elif [ -f NeoBar-cloud-build-package.zip ]; then
+            PACKAGE="NeoBar-cloud-build-package.zip"
+          else
+            echo "Cloud build ZIP not found!"
+            ls -la
+            exit 1
+          fi
+
+          unzip -q "$PACKAGE" -d source
+
+      - name: Find Android Project
+        id: project
+        run: |
+          SETTINGS=$(find source -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
+
+          if [ -z "$SETTINGS" ]; then
+            echo "Gradle settings file not found!"
+            find source -maxdepth 4 -type f
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$SETTINGS")
+          echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
 
       - name: Build APK
-        working-directory: source
-        run: gradle --no-daemon assembleDebug
+        run: |
+          cd "${{ steps.project.outputs.dir }}"
+          gradle --no-daemon assembleDebug
 
-      - name: Upload APK
+      - name: Upload NeoBar APK
         uses: actions/upload-artifact@v4
         with:
           name: NeoBar-APK
-          path: source/app/build/outputs/apk/debug/*.apk
+          path: source/**/build/outputs/apk/debug/*.apk
           if-no-files-found: error
